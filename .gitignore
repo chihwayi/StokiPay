@@ -1,0 +1,23 @@
+# Environment and provider credentials
+.env
+.env.local
+.env.*.local
+
+# Node / Next.js build output
+node_modules/
+.next/
+out/
+coverage/
+playwright-report/
+test-results/
+
+# Generated service worker (built by @serwist/next from app/sw.ts)
+public/sw.js
+public/sw.js.map
+public/swe-worker-*.js
+public/swe-worker-*.js.map
+
+# Local tooling
+.DS_Store
+*.log
+*.tsbuildinfo
