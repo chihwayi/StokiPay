@@ -11,8 +11,9 @@ Before any change, read:
 1. `project_description.md`
 2. `sprints.md`
 3. `docs/architecture.md`
-4. the latest file in `docs/handoffs/`
-5. the active sprint's ADRs in `docs/adr/`
+4. `docs/runbooks/coolify-deployment.md`
+5. the latest file in `docs/handoffs/`
+6. the active sprint's ADRs in `docs/adr/`
 
 If a required document does not exist, create it only if the active sprint asks for it. Do not infer a later feature or create speculative integrations.
 
@@ -43,3 +44,5 @@ For every sprint, create `docs/handoffs/sprint-<n>.md` using `docs/templates/spr
 ## First task
 
 Start with Sprint 0 only. Do not create products, POS screens, Supabase schema, or payment integrations until its discovery, ADR and verification gates are complete.
+
+For infrastructure work, follow `docs/runbooks/coolify-deployment.md` exactly. Do not provision paid-server resources or expose services without the owner's explicit approval.

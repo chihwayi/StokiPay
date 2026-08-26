@@ -4,7 +4,7 @@
 
 ## How any AI assistant must use this plan
 
-1. Read `project_description.md`, this file, `README.md`, and the latest `docs/handoffs/` note before changing code.
+1. Read `project_description.md`, this file, `README.md`, `docs/architecture.md`, `docs/runbooks/coolify-deployment.md`, and the latest `docs/handoffs/` note before changing code.
 2. Work only on the named sprint. Do not silently implement work assigned to later sprints.
 3. Create or update the sprint's tests at the same time as its implementation. A checkbox without evidence is not complete.
 4. Run the listed verification commands. Record the actual commands and outcome in `docs/handoffs/sprint-<n>.md`.

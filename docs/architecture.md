@@ -2,6 +2,8 @@
 
 This document fixes the intended code boundaries. Empty folder README files are deliberate placeholders; implement them only in the sprint that owns them.
 
+All deployment, network, backup and self-hosted-data-platform requirements are mandatory and live in `docs/runbooks/coolify-deployment.md`.
+
 ## Locked stack
 
 | Concern | Decision |

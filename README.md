@@ -39,7 +39,8 @@ development) — no schema exists yet; it is added starting Sprint 1.
 2. Read `project_description.md` for the product definition.
 3. Read `sprints.md` for the modular delivery and verification contract.
 4. Read `docs/architecture.md` before making technical decisions.
-5. Read the newest `docs/handoffs/` entry before continuing a sprint.
+5. Read `docs/runbooks/coolify-deployment.md` before any deployment or database work.
+6. Read the newest `docs/handoffs/` entry before continuing a sprint.
 
 ## Important boundaries
 
