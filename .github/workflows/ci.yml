@@ -8,6 +8,21 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: supabase/postgres:15.8.1.085
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 54322:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:54322/postgres
     steps:
       - uses: actions/checkout@v4
 
@@ -23,6 +38,12 @@ jobs:
       - run: npm run typecheck
 
       - run: npm run test
+
+      - name: Apply schema + RLS migrations to the CI Postgres
+        run: npm run db:apply-migrations
+
+      - name: RLS integration tests
+        run: npm run test:integration
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium

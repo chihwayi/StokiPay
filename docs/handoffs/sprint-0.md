@@ -2,7 +2,7 @@
 
 ## Status
 
-`in progress` — technical foundation, ADRs and Coolify staging (Next.js app + self-hosted Supabase stack) are live and verified. Discovery is resolved (owner accepted hypothesis-only, 2026-08-26). Two items remain blocked on the human owner or external providers before this sprint can be marked `complete` — see Blockers.
+`in progress` — technical foundation, ADRs and Coolify staging (Next.js app + self-hosted Supabase stack) are live and verified. Discovery is resolved (owner accepted hypothesis-only, 2026-08-26). Two items remain open (`.env.example`, off-host backup destination) — owner explicitly chose (2026-08-26) to start Sprint 1 immediately and resolve these in parallel rather than block on them. Sprint 0's checkboxes in `sprints.md` stay unchecked until both are actually done.
 
 ## Scope delivered
 
