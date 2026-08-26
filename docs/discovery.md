@@ -1,10 +1,10 @@
 # Sprint 0 Discovery
 
-## Status: hypotheses drafted, real interviews NOT YET CONDUCTED
+## Status: hypotheses drafted; owner has explicitly accepted hypothesis-only discovery
 
-`sprints.md` requires this document to identify launch users, validated pains, pricing hypotheses and unresolved risks from **10–15 target user interviews**. No such interviews have been conducted yet — nobody with access to real Zimbabwean SME owners has run them. Everything below is a hypothesis derived from `project_description.md`'s persona research and stated market context, **not validated field evidence**. Do not cite this document as proof of demand, willingness to pay, or feature priority; treat every claim below as "to be tested," not "known."
+`sprints.md` originally asked this document to identify launch users, validated pains, pricing hypotheses and unresolved risks from **10–15 target user interviews**. No such interviews were conducted. On 2026-08-26 the owner (chihwayii@outlook.com) explicitly instructed that this gap be set aside so development can proceed — this is recorded here as the **documented owner acceptance of hypothesis-only discovery** that `docs/runbooks/coolify-deployment.md`'s Sprint 0 exit evidence anticipates as an alternative to real interviews.
 
-This is recorded honestly, per `CLAUDE.md`'s rule against claiming evidence that doesn't exist, rather than fabricating interview notes to close this checklist item.
+Everything below therefore remains a hypothesis derived from `project_description.md`'s persona research and stated market context, **not validated field evidence** — the owner has chosen to accept that risk and proceed rather than block on it. Product/UX decisions in later sprints should still treat these as assumptions to revisit if real user feedback contradicts them, not as confirmed requirements.
 
 ## What real interviews still need to establish
 
@@ -25,11 +25,11 @@ This is recorded honestly, per `CLAUDE.md`'s rule against claiming evidence that
 
 ## Unresolved risks
 
-- **No real interviews yet** is itself the top risk: every downstream product decision in Sprint 1+ is currently built on assumption, not evidence.
+- **Discovery remains unvalidated by design** (owner-accepted, see Status above): every downstream product decision in Sprint 1+ is built on assumption, not field evidence. If real usage or feedback later contradicts a hypothesis here, treat the hypothesis as wrong, not the feedback.
 - Mobile money aggregator terms (Paynow vs. direct EcoCash API access, fee structure) — not yet confirmed with a provider.
-- Fiscal/VAT compliance requirements — not yet confirmed with a compliance professional; no fiscal compliance claim is authorized until this happens (`sprints.md` locked decision).
+- Fiscal/VAT compliance requirements — not yet confirmed with a compliance professional; no fiscal compliance claim is authorized until this happens (`sprints.md` locked decision). This is independent of the discovery-interview decision and still applies.
 - FX-rate source and approval trust — no shop-owner input yet on which rate source they'd trust for the exchange-rate snapshot model (ADR 0004).
 
 ## Recommended next step
 
-Before Sprint 1 begins in earnest, the project owner (or whoever has access to real SME contacts) should run the 10–15 interviews against the questions above and replace this document's hypotheses with recorded findings. This is a human-relationship task an AI assistant cannot perform on its own behalf.
+Development proceeds on the hypotheses above per the owner's 2026-08-26 decision. If real SME interviews become available later, replace the relevant hypotheses with recorded findings and reassess any feature built on an assumption that turned out wrong — this document's hypotheses are not load-bearing for compliance/security requirements (fiscal, RLS, idempotency), only for product/UX prioritization.

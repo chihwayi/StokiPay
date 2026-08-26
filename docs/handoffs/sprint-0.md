@@ -2,7 +2,7 @@
 
 ## Status
 
-`in progress` — technical foundation, ADRs and Coolify staging (Next.js app + self-hosted Supabase stack) are live and verified. Three items remain blocked on the human owner or external providers before this sprint can be marked `complete` — see Blockers.
+`in progress` — technical foundation, ADRs and Coolify staging (Next.js app + self-hosted Supabase stack) are live and verified. Discovery is resolved (owner accepted hypothesis-only, 2026-08-26). Two items remain blocked on the human owner or external providers before this sprint can be marked `complete` — see Blockers.
 
 ## Scope delivered
 
@@ -41,7 +41,7 @@ Server: `31.220.84.245` (Contabo, per `../../coolify-infra/README.md`). Project 
 
 | Criterion | Evidence location / command | Result |
 |---|---|---|
-| `docs/discovery.md` identifies launch users, pains, pricing hypotheses, risks | `docs/discovery.md` | Hypotheses only — real interviews not conducted. See Blockers. |
+| `docs/discovery.md` identifies launch users, pains, pricing hypotheses, risks | `docs/discovery.md` | **Done** — hypotheses only, but owner explicitly accepted hypothesis-only discovery 2026-08-26 (the runbook's documented alternative to real interviews). |
 | `docs/adr/` contains sync, idempotency and currency decisions | `docs/adr/0002`–`0005` | Done |
 | A fresh clone can run locally using README instructions and `.env.example` | `README.md`; `npm install && npm run dev` verified | Done, with caveat: `.env.example` not updated (sandbox blocks `.env*` file access for this assistant). See Blockers. |
 | CI runs lint, typecheck, unit test, E2E smoke test and production build | `.github/workflows/ci.yml`; run locally this session, see Verification run | Done locally; not yet observed running on GitHub Actions itself (pushed but not confirmed green in the Actions tab) |
@@ -77,14 +77,15 @@ Date: 2026-08-26
   - Observability wiring is minimal (no-op without real DSN/keys), untested against a real Sentry/PostHog project.
   - `ENABLE_PHONE_AUTOCONFIRM=true` on the deployed Supabase Auth service is insecure-by-default and must be flipped in Sprint 1 (see Coolify staging evidence above).
   - The project/environment split is currently a single `production`-named Coolify environment rather than distinct staging/production environments — acceptable for now (no real tenant data exists), revisit before Sprint 10 launch prep.
+- Resolved decisions:
+  1. **Discovery interviews**: owner explicitly accepted hypothesis-only discovery on 2026-08-26 rather than blocking on real interviews — see `docs/discovery.md` Status section. Not a blocker anymore.
 - Blockers requiring a human/provider decision:
-  1. **Real discovery interviews** (10–15 target users) have not been conducted; `docs/discovery.md` is hypotheses only.
-  2. **`.env.example` could not be updated by this assistant** — the sandbox denies Read/Edit/Bash access to `.env*` files. The owner needs to add the variable names listed above (safe names/descriptions only, no real values, per `CLAUDE.md`).
-  3. **Backup/restore evidence** (`docs/runbooks/coolify-deployment.md` exit item 4) is not done. The runbook requires encrypted backups copied *off* the Coolify host — this assistant has no external S3/second-server destination to send them to. Needs the owner to provide (or approve provisioning) an off-host backup destination (e.g. Backblaze B2, AWS S3, or a second server) before this can be completed and a restore drill run.
-  4. **Africa's Talking sandbox credentials** are not yet available to actually test the OTP hook designed in ADR 0005 — that implementation is Sprint 1 scope regardless, but the sandbox transcript required by the runbook can't exist until Sprint 1 has real (sandbox) credentials.
+  1. **`.env.example` could not be updated by this assistant** — the sandbox denies Read/Edit/Bash access to `.env*` files. The owner needs to add the variable names listed above (safe names/descriptions only, no real values, per `CLAUDE.md`).
+  2. **Backup/restore evidence** (`docs/runbooks/coolify-deployment.md` exit item 4) is not done. The runbook requires encrypted backups copied *off* the Coolify host — this assistant has no external S3/second-server destination to send them to. Needs the owner to provide (or approve provisioning) an off-host backup destination (e.g. Backblaze B2, AWS S3, or a second server) before this can be completed and a restore drill run.
+  3. **Africa's Talking sandbox credentials** are not yet available to actually test the OTP hook designed in ADR 0005 — that implementation is Sprint 1 scope regardless, but the sandbox transcript required by the runbook can't exist until Sprint 1 has real (sandbox) credentials.
 
 ## Next assistant
 
-- Next permitted sprint: Sprint 0 is not yet exit-gated — the technical/infra work is done and verified, but do not start Sprint 1 until the owner resolves: (a) the discovery-interview gap, (b) `.env.example` (needs a session/owner with file access, or the owner adds it directly), (c) an off-host backup destination and restore-test date.
+- Next permitted sprint: Sprint 0 is not yet exit-gated — technical/infra work is done and verified, and the discovery gap is now owner-accepted, but do not start Sprint 1 until: (a) `.env.example` is updated (needs a session/owner with file access, or the owner adds it directly), (b) an off-host backup destination and restore-test date exist.
 - First files to read: this file, `docs/discovery.md`, `docs/adr/0001`–`0005`, `docs/architecture.md`, `docs/runbooks/coolify-deployment.md`, `../../coolify-infra/README.md`.
 - Do not do yet: any product/stock/POS schema, payment integration, or WhatsApp/AI work (per `CLAUDE.md`'s "First task" instruction); do not flip `ENABLE_PHONE_AUTOCONFIRM` or implement the Africa's Talking hook outside Sprint 1; do not mark Sprint 0's checkboxes in `sprints.md` complete until the three blockers above are resolved.
