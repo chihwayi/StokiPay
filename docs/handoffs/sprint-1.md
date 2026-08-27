@@ -2,7 +2,9 @@
 
 ## Status
 
-`in progress` — schema, RLS, onboarding, dashboard and device registration are built, tested and live on staging. Real phone-OTP verification is blocked on one specific, reproducible GoTrue configuration issue; a clearly-labeled, unverified interim sign-in bridge stands in for it so the rest of the stack is clickable now.
+`in progress` — schema, RLS, onboarding, dashboard and device registration are built, tested and **verified working end-to-end on staging** (real tenant created via the onboarding RPC, dashboard shows it, cleaned up after). Real phone-OTP verification remains blocked on one specific, reproducible GoTrue configuration issue and is intentionally deferred (owner decision, 2026-08-27) — a clearly-labeled, unverified interim sign-in bridge stands in for it.
+
+**Fixed during end-to-end verification:** the onboarding RPC initially failed in the browser with `function stockflow_auth_uid() does not exist` / a 404 from PostgREST. Root cause: `stockflow_auth_uid()` (defined in migration 0002) was missing from the live staging database — lost during the earlier flaky-SSH-tunnel debugging session, not a bug in the migration itself (confirmed: CI's RLS tests pass running the same migration against a fresh Postgres). Fixed by re-applying the function directly, notifying PostgREST to reload its schema cache (`NOTIFY pgrst, 'reload schema'` — necessary any time a function/table is added outside PostgREST's own awareness), and adding `0004_ensure_auth_uid_exists.sql` as a defensive re-apply so a future clean migration run can't reproduce the gap. Re-verified with a real signup → onboarding → dashboard round trip against the live Kong/PostgREST endpoint (not just direct Postgres access), then cleaned up the test data.
 
 ## Scope delivered
 
@@ -21,7 +23,7 @@
   - GoTrue's compose environment on the server was edited directly to add `GOTRUE_HOOK_SEND_SMS_ENABLED/_URI/_SECRETS` (Coolify's `supabase` service template doesn't expose these by default — see `../../coolify-infra/README.md` gotcha #9).
 - **Interim sign-in bridge** (`app/api/auth/request-access/route.ts`) — see Known limitation.
 
-## Known limitation — phone OTP verification is not live
+## Known limitation — phone OTP verification is not live (deferred, owner decision 2026-08-27)
 
 `signInWithOtp`/GoTrue's Send SMS Hook is fully implemented per ADR 0005, but GoTrue rejects every hook invocation at runtime with `500: Hook requires authorization token`, even though:
 
@@ -29,9 +31,11 @@
 - Our hook receiver (`app/api/auth/sms-hook`) correctly verifies Standard Webhooks HMAC signatures and was never actually reached (GoTrue's hook-call log entry shows a ~1ms duration, far too fast for a real HTTPS round trip — this is failing a local GoTrue precondition before it ever calls out to us).
 - The GoTrue binary (`supabase/gotrue:v2.186.0`, upstream repo `supabase/auth`) confirms `conf.HTTPHookSecrets.Decode`/`validateHTTPHookSecrets` exist and parse successfully; the exact runtime check that then rejects the call with "requires authorization token" wasn't identified from the binary strings alone, and GoTrue's docs weren't available to consult during this session.
 
-**Interim measure**: `app/sign-in` now calls `app/api/auth/request-access`, which creates/updates a GoTrue user for the entered phone number and signs them in via the service-role key and a server-generated password — **with no proof of phone ownership whatsoever**. This is loudly labeled in the UI ("Testing mode — phone number not yet SMS-verified") and in the route's own code comments. It exists only so `stockflow_onboard_tenant`, the dashboard, RLS and device registration are clickable end-to-end in staging today. **Do not use with real users or real phone numbers that matter** — anyone who knows a phone number can currently claim it.
+The owner explicitly deferred chasing this further (2026-08-27): no Africa's Talking gateway account exists yet anyway, so real SMS delivery couldn't be tested end-to-end even with the hook fixed. Revisit once a real gateway account exists — the hook receiver, HMAC verification and dev-fallback plumbing are already built and just need the GoTrue-side issue resolved (or Supabase's actual hook documentation consulted, which wasn't accessible this session).
 
-Next assistant (or a session with access to GoTrue's actual documentation/support channel) should: identify the real cause of "Hook requires authorization token", fix it, restore `app/sign-in` to `signInWithOtp`/`verifyOtp` (the code is preserved in git history at the commit before this one if a quick revert is wanted while debugging), delete `app/api/auth/request-access`, and flip `ENABLE_PHONE_AUTOCONFIRM` to `false` per ADR 0005 once verification is real.
+**Interim measure (still active)**: `app/sign-in` calls `app/api/auth/request-access`, which creates/updates a GoTrue user for the entered phone number and signs them in via the service-role key and a server-generated password — **with no proof of phone ownership whatsoever**. Loudly labeled in the UI ("Testing mode — phone number not yet SMS-verified") and in the route's own code comments. Verified working end-to-end this session (real signup → onboarding → dashboard). **Do not use with real users or real phone numbers that matter** — anyone who knows a phone number can currently claim it.
+
+Next assistant (once a real Africa's Talking account exists, or with access to GoTrue's actual documentation/support channel): identify the real cause of "Hook requires authorization token", fix it, restore `app/sign-in` to `signInWithOtp`/`verifyOtp` (code preserved in git history), delete `app/api/auth/request-access`, and flip `ENABLE_PHONE_AUTOCONFIRM` to `false` per ADR 0005 once verification is real.
 
 ## Coolify staging evidence
 
