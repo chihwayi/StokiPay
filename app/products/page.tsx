@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ReceiveStockForm } from "@/components/features/stock/receive-stock-form";
+import { AdjustStockForm } from "@/components/features/stock/adjust-stock-form";
 
 export default async function ProductsPage() {
   const supabase = await createClient();
@@ -52,11 +53,18 @@ export default async function ProductsPage() {
             Products
           </h1>
         </div>
-        {canManage && (
-          <Link href="/products/new">
-            <Button className="min-h-11 px-4 text-sm">+ New</Button>
+        <div className="flex items-center gap-2">
+          <Link href="/counts">
+            <Button variant="ghost" className="min-h-11 px-4 text-sm">
+              Stock counts
+            </Button>
           </Link>
-        )}
+          {canManage && (
+            <Link href="/products/new">
+              <Button className="min-h-11 px-4 text-sm">+ New</Button>
+            </Link>
+          )}
+        </div>
       </header>
 
       {!products?.length && (
@@ -92,7 +100,10 @@ export default async function ProductsPage() {
                 {isLow && <StatusBadge tone="warning">Low stock</StatusBadge>}
               </div>
               {branch && (
-                <ReceiveStockForm productId={p.id} tenantId={staffUser.tenant_id} branchId={branch.id} />
+                <div className="flex flex-wrap items-center gap-2">
+                  <ReceiveStockForm productId={p.id} tenantId={staffUser.tenant_id} branchId={branch.id} />
+                  <AdjustStockForm productId={p.id} tenantId={staffUser.tenant_id} branchId={branch.id} />
+                </div>
               )}
             </Card>
           );
