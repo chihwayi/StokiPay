@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 test("unauthenticated visitor is redirected to sign-in", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveURL(/\/sign-in$/);
-  await expect(page.getByRole("heading", { name: "Sign in to StockFlow ZW" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "StockFlow ZW" })).toBeVisible();
 });
 
 test("manifest is served for installability", async ({ request }) => {

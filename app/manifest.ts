@@ -8,8 +8,8 @@ export default function manifest(): MetadataRoute.Manifest {
       "Offline-first stock, sales and business management for Zimbabwean SMEs.",
     start_url: "/",
     display: "standalone",
-    background_color: "#0f172a",
-    theme_color: "#0f766e",
+    background_color: "#faf3e7",
+    theme_color: "#d9752c",
     icons: [
       {
         src: "/icon.svg",
