@@ -1,0 +1,23 @@
+# PowerSync sync rules (ADR 0002). Mirrors the RLS tenant boundary at the
+# sync layer: a device only ever receives rows for the tenant its signed-
+# in staff_users row belongs to — token_parameters.user_id is the
+# GoTrue/Supabase JWT 'sub' claim (== staff_users.id, per Sprint 1).
+#
+# Scoped to the tables that actually need offline-safe writes today
+# (products, stock_movements, plus the identity tables a device needs to
+# resolve its own tenant/branch/role locally). stock_counts/
+# stock_count_lines are deliberately NOT synced yet — PowerSync's sync
+# rule queries don't support the cross-table subquery
+# stock_count_lines would need (it has no tenant_id column of its own,
+# only via stock_counts), and counts are a lower-frequency, online-only
+# workflow for now. Revisit if blind counts need to work offline too.
+bucket_definitions:
+  tenant_data:
+    parameters: SELECT tenant_id FROM staff_users WHERE id = token_parameters.user_id
+    data:
+      - SELECT * FROM tenants WHERE id = bucket.tenant_id
+      - SELECT * FROM branches WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM staff_users WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM devices WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM products WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM stock_movements WHERE tenant_id = bucket.tenant_id

@@ -1,0 +1,10 @@
+# Self-hosted PowerSync service (ADR 0002). journeyapps/powersync-service's
+# default CMD just prints --help; Coolify's dockerimage build pack has no
+# way to override CMD via its API (see ../../coolify-infra/README.md
+# gotcha #6), so wrap it in a one-line Dockerfile instead, same pattern
+# used for vaultstream's MinIO storage service.
+FROM journeyapps/powersync-service:latest
+COPY infra/powersync/config.yaml /app/config.yaml
+COPY infra/powersync/sync_rules.yaml /app/sync_rules.yaml
+ENV POWERSYNC_CONFIG_PATH=/app/config.yaml
+CMD ["start", "-r", "unified"]

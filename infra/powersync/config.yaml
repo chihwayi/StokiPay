@@ -1,0 +1,23 @@
+# Self-hosted PowerSync service config (ADR 0002). Secrets come from
+# PS_-prefixed environment variables set on the Coolify application
+# resource — never baked into this file or the image (PowerSync's YAML
+# env-substitution only allows the PS_ prefix, see
+# journeyapps/powersync-service's yaml-env.js).
+replication:
+  connections:
+    - type: postgresql
+      uri: !env PS_DATABASE_URI
+      sslmode: disable
+
+storage:
+  type: postgresql
+  uri: !env PS_STORAGE_URI
+
+port: 8080
+
+client_auth:
+  supabase: true
+  supabase_jwt_secret: !env PS_SUPABASE_JWT_SECRET
+
+sync_rules:
+  path: /app/sync_rules.yaml
