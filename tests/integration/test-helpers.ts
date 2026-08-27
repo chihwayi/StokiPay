@@ -29,3 +29,27 @@ export async function asUser<T>(
     });
   return result;
 }
+
+// Same simulated-user mechanism as asUser, but COMMITS — for tests that
+// need a multi-step, multi-actor flow (e.g. cashier submits a count,
+// then owner approves it) where each step's writes must be visible to
+// the next. Callers must clean up their own data (afterAll in the test
+// file already does, scoped by tenant_id).
+export async function asUserPersist<T>(
+  sql: postgres.Sql,
+  userId: string | null,
+  fn: (tx: postgres.TransactionSql) => Promise<T>,
+): Promise<T> {
+  let result!: T;
+  await sql.begin(async (tx) => {
+    if (userId) {
+      await tx.unsafe(
+        `set local role authenticated; set local request.jwt.claims = '${JSON.stringify({ sub: userId })}';`,
+      );
+    } else {
+      await tx.unsafe(`set local role anon;`);
+    }
+    result = await fn(tx);
+  });
+  return result;
+}

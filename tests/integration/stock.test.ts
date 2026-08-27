@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { asUser } from "./test-helpers";
+import { asUser, asUserPersist } from "./test-helpers";
 
 // Proves Sprint 2's core accounting-truth acceptance criteria
 // (sprints.md): every stock change is an immutable movement with actor/
@@ -165,15 +165,17 @@ describe.skipIf(!connectionString)("Stock: movements, reconciliation, blind coun
       ),
     ).rejects.toThrow();
 
-    // Legitimate blind entry: no expected_quantity.
-    const inserted = await asUser(admin, cashierA, (tx) =>
+    // Legitimate blind entry: no expected_quantity. Uses asUserPersist
+    // (commits) because the next steps need to see this row — asUser's
+    // auto-rollback is only safe for single, self-contained checks.
+    const inserted = await asUserPersist(admin, cashierA, (tx) =>
       tx`insert into stock_count_lines (stock_count_id, product_id, counted_quantity)
         values (${countId}, ${productA}, 47) returning expected_quantity`,
     );
     expect(inserted[0].expected_quantity).toBeNull();
 
     // Submit (counter's own count) computes expected server-side.
-    const afterSubmit = await asUser(admin, cashierA, async (tx) => {
+    const afterSubmit = await asUserPersist(admin, cashierA, async (tx) => {
       await tx`select stockflow_submit_stock_count(${countId})`;
       return tx`select expected_quantity, counted_quantity from stock_count_lines where stock_count_id = ${countId}`;
     });
@@ -186,11 +188,15 @@ describe.skipIf(!connectionString)("Stock: movements, reconciliation, blind coun
     ).rejects.toThrow();
 
     // Owner approves — variance (47 - 50 = -3) becomes a movement.
-    const afterApprove = await asUser(admin, ownerA, async (tx) => {
+    const afterApprove = await asUserPersist(admin, ownerA, async (tx) => {
       await tx`select stockflow_approve_stock_count(${countId})`;
       return tx`select movement_type, quantity_delta from stock_movements where tenant_id = ${tenantA} and movement_type = 'count_variance'`;
     });
     expect(afterApprove).toHaveLength(1);
     expect(afterApprove[0].quantity_delta).toBe(-3);
+
+    await admin`delete from stock_movements where tenant_id = ${tenantA} and movement_type = 'count_variance'`;
+    await admin`delete from stock_count_lines where stock_count_id = ${countId}`;
+    await admin`delete from stock_counts where id = ${countId}`;
   });
 });
