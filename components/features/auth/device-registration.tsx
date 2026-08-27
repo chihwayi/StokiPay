@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/auth/supabase-browser";
 import { StatusBadge } from "@/components/ui/status-badge";
-
-const STORAGE_KEY = "stockflow_device_id";
+import { getOrCreateDeviceId } from "@/lib/sync/device-id";
 
 // Registers a stable device_id for this browser (ADR 0003's device_id
 // half of the operation_id/device_id idempotency contract) the first time
@@ -24,11 +23,7 @@ export function DeviceRegistration() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      let deviceId = localStorage.getItem(STORAGE_KEY);
-      if (!deviceId) {
-        deviceId = crypto.randomUUID();
-        localStorage.setItem(STORAGE_KEY, deviceId);
-      }
+      const deviceId = getOrCreateDeviceId();
 
       const { data: staffUser } = await supabase
         .from("staff_users")

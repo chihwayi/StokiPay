@@ -1,8 +1,11 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/auth/supabase-server";
 import { SyncStatusIndicator } from "@/components/features/sync/sync-status-indicator";
 import { DeviceRegistration } from "@/components/features/auth/device-registration";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 function greeting() {
   const hour = new Date().getHours();
@@ -33,6 +36,21 @@ export default async function DashboardPage() {
 
   const tenant = Array.isArray(staffUser.tenants) ? staffUser.tenants[0] : staffUser.tenants;
 
+  const { data: products } = await supabase
+    .from("products")
+    .select("id, low_stock_threshold")
+    .eq("tenant_id", staffUser.tenant_id);
+
+  const { data: levels } = await supabase
+    .from("stock_levels")
+    .select("product_id, quantity")
+    .eq("tenant_id", staffUser.tenant_id);
+
+  const levelByProduct = new Map((levels ?? []).map((l) => [l.product_id, l.quantity]));
+  const lowStockCount = (products ?? []).filter(
+    (p) => (levelByProduct.get(p.id) ?? 0) <= p.low_stock_threshold,
+  ).length;
+
   return (
     <main className="relative z-10 mx-auto flex min-h-dvh max-w-md flex-col gap-6 px-6 py-10">
       <header className="animate-rise-in flex items-start justify-between gap-4">
@@ -54,20 +72,25 @@ export default async function DashboardPage() {
         <DeviceRegistration />
       </div>
 
-      <Card
-        accent
-        className="animate-rise-in flex min-h-56 flex-col items-center justify-center gap-3 text-center"
-      >
-        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-teal-soft text-2xl">
-          📦
-        </span>
-        <p className="font-display text-xl font-semibold text-foreground">
-          No sales or stock yet
-        </p>
-        <p className="max-w-xs text-sm text-foreground-muted">
-          Product, stock and sales screens are built in later sprints per{" "}
-          <code className="rounded bg-surface-sunken px-1.5 py-0.5 text-xs">sprints.md</code>.
-        </p>
+      <Card accent className="animate-rise-in flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-display text-2xl font-semibold text-foreground">
+              {products?.length ?? 0} products
+            </p>
+            <p className="text-sm text-foreground-muted">tracked in your catalogue</p>
+          </div>
+          {lowStockCount > 0 && <StatusBadge tone="warning">{lowStockCount} low on stock</StatusBadge>}
+        </div>
+        <Link href="/products">
+          <Button variant="secondary" className="w-full">
+            {products?.length ? "Manage products & stock" : "Add your first product"}
+          </Button>
+        </Link>
+      </Card>
+
+      <Card className="animate-rise-in flex flex-col items-center gap-2 py-6 text-center text-sm text-foreground-muted">
+        <p>Sales, POS and cash-up screens are built in later sprints per <code className="rounded bg-surface-sunken px-1.5 py-0.5 text-xs">sprints.md</code>.</p>
       </Card>
     </main>
   );
