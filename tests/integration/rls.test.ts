@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { asUser } from "./test-helpers";
 
 // Proves the Sprint 1 RLS policies (lib/db/migrations/0001_rls_policies.sql)
 // actually enforce tenant isolation and role checks — per CLAUDE.md rule 1
@@ -12,36 +13,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 // .github/workflows/ci.yml).
 
 const connectionString = process.env.DATABASE_URL;
-
-// Runs a query as a specific simulated authenticated user, mirroring what
-// PostgREST does per-request (SET LOCAL role + request.jwt.claims), inside
-// a transaction that's always rolled back so tests never truncate real
-// data on shared instances.
-async function asUser<T>(
-  sql: postgres.Sql,
-  userId: string | null,
-  fn: (tx: postgres.TransactionSql) => Promise<T>,
-): Promise<T> {
-  let result!: T;
-  await sql
-    .begin(async (tx) => {
-      if (userId) {
-        await tx.unsafe(
-          `set local role authenticated; set local request.jwt.claims = '${JSON.stringify({ sub: userId })}';`,
-        );
-      } else {
-        await tx.unsafe(`set local role anon;`);
-      }
-      result = await fn(tx);
-      throw new RollbackForCleanup();
-    })
-    .catch((e) => {
-      if (!(e instanceof RollbackForCleanup)) throw e;
-    });
-  return result;
-}
-
-class RollbackForCleanup extends Error {}
 
 describe.skipIf(!connectionString)("RLS: cross-tenant and role isolation", () => {
   const admin = postgres(connectionString ?? "", { ssl: false });

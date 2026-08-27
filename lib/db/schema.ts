@@ -1,7 +1,9 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  integer,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
   text,
@@ -77,5 +79,108 @@ export const auditLog = pgTable("audit_log", {
   entityType: text("entity_type"),
   entityId: uuid("entity_id"),
   metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Sprint 2 — Product, Stock & Inventory Controls. stock_levels is
+// deliberately NOT a table here — it's a derived view
+// (lib/db/migrations/0005_products_and_stock.sql) over stock_movements,
+// so "stock on hand" can never drift from its movement history
+// (sprints.md's reconciliation acceptance criterion).
+
+export const products = pgTable("products", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  name: text("name").notNull(),
+  category: text("category"),
+  unit: text("unit").notNull().default("each"),
+  barcode: text("barcode"),
+  costPriceMinor: integer("cost_price_minor").notNull().default(0),
+  sellPriceMinor: integer("sell_price_minor").notNull().default(0),
+  priceCurrency: text("price_currency").notNull().default("USD"), // ZIG | USD | ZAR
+  lowStockThreshold: integer("low_stock_threshold").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Append-only (CLAUDE.md rule 2/3) — every stock change is a row here,
+// never an edit to a running total. operation_id/device_id are the
+// idempotency contract from ADR 0003.
+export const stockMovements = pgTable("stock_movements", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  branchId: uuid("branch_id")
+    .notNull()
+    .references(() => branches.id),
+  productId: uuid("product_id")
+    .notNull()
+    .references(() => products.id),
+  movementType: text("movement_type").notNull(), // 'receipt' | 'adjustment' | 'count_variance'
+  quantityDelta: integer("quantity_delta").notNull(),
+  reason: text("reason"),
+  actorStaffUserId: uuid("actor_staff_user_id")
+    .notNull()
+    .references(() => staffUsers.id),
+  deviceId: uuid("device_id")
+    .notNull()
+    .references(() => devices.id),
+  operationId: uuid("operation_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Owner/manager-approved FX rates (ADR 0004) — reports and rate-derived
+// prices read this, never "today's rate" implicitly.
+export const exchangeRates = pgTable("exchange_rates", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  baseCurrency: text("base_currency").notNull(),
+  quoteCurrency: text("quote_currency").notNull(),
+  rate: numeric("rate", { precision: 18, scale: 8 }).notNull(),
+  source: text("source").notNull(),
+  approvedBy: uuid("approved_by")
+    .notNull()
+    .references(() => staffUsers.id),
+  effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Blind stock counts — the counting staff member never sees the expected
+// quantity (enforced by stockflow_submit_stock_count never returning it
+// to a non-owner/manager caller); a variance beyond zero always requires
+// owner/manager approval before it becomes a stock_movements row.
+export const stockCounts = pgTable("stock_counts", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  branchId: uuid("branch_id")
+    .notNull()
+    .references(() => branches.id),
+  status: text("status").notNull().default("open"), // 'open' | 'submitted' | 'approved'
+  createdBy: uuid("created_by")
+    .notNull()
+    .references(() => staffUsers.id),
+  approvedBy: uuid("approved_by").references(() => staffUsers.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+});
+
+export const stockCountLines = pgTable("stock_count_lines", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  stockCountId: uuid("stock_count_id")
+    .notNull()
+    .references(() => stockCounts.id),
+  productId: uuid("product_id")
+    .notNull()
+    .references(() => products.id),
+  countedQuantity: integer("counted_quantity").notNull(),
+  expectedQuantity: integer("expected_quantity"), // filled in at submit time, not before
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
