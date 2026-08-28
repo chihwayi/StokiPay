@@ -2,15 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/auth/supabase-browser";
-import { getDeviceId } from "@/lib/sync/device-id";
+import { queueStockMovement } from "@/lib/sync/writes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-// Logs a reason-coded stock_movements 'adjustment' row (positive or
-// negative) — the CHECK constraint in
-// lib/db/migrations/0006_stock_rls_and_functions.sql rejects an
-// adjustment with no reason, so this form can't omit one.
+// Queues a reason-coded stock_movements 'adjustment' row (positive or
+// negative) through the local-first PowerSync write path (ADR 0002/0003,
+// lib/sync/writes.ts). The CHECK constraint in
+// lib/db/migrations/0006_stock_rls_and_functions.sql still rejects an
+// adjustment with no reason server-side, but this form can't omit one
+// either.
 export function AdjustStockForm({
   productId,
   tenantId,
@@ -38,41 +39,26 @@ export function AdjustStockForm({
       setError("A reason is required for adjustments");
       return;
     }
-    const deviceId = getDeviceId();
-    if (!deviceId) {
-      setError("Device not registered yet — reload the dashboard first");
-      return;
-    }
 
     setBusy(true);
     setError(null);
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
+
+    try {
+      await queueStockMovement({
+        tenantId,
+        branchId,
+        productId,
+        movementType: "adjustment",
+        quantityDelta: qty,
+        reason: reason.trim(),
+      });
+    } catch (e) {
       setBusy(false);
-      setError("Session expired");
+      setError(e instanceof Error ? e.message : "Could not queue this adjustment");
       return;
     }
-
-    const { error: insertError } = await supabase.from("stock_movements").insert({
-      tenant_id: tenantId,
-      branch_id: branchId,
-      product_id: productId,
-      movement_type: "adjustment",
-      quantity_delta: qty,
-      reason: reason.trim(),
-      actor_staff_user_id: user.id,
-      device_id: deviceId,
-      operation_id: crypto.randomUUID(),
-    });
 
     setBusy(false);
-    if (insertError) {
-      setError(insertError.message);
-      return;
-    }
     setDelta("");
     setReason("");
     setOpen(false);

@@ -184,3 +184,199 @@ export const stockCountLines = pgTable("stock_count_lines", {
   expectedQuantity: integer("expected_quantity"), // filled in at submit time, not before
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Sprint 3 — Offline-Safe POS, Returns & Cash-up. All rows in this
+// section are written exclusively through SECURITY DEFINER RPCs
+// (lib/db/migrations/0007_sales_cashup_tables.sql and 0008_sales_cashup_rls_and_functions.sql) — never a direct
+// insert policy — because sale/return/cash-up creation is atomic,
+// multi-row and idempotency/rate-lookup logic that plain RLS can't
+// express (same reasoning as the Sprint 2 blind-count RPCs). Money
+// columns follow ADR 0004's snapshot model throughout.
+
+export const cashSessions = pgTable("cash_sessions", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  branchId: uuid("branch_id")
+    .notNull()
+    .references(() => branches.id),
+  deviceId: uuid("device_id")
+    .notNull()
+    .references(() => devices.id),
+  openedBy: uuid("opened_by")
+    .notNull()
+    .references(() => staffUsers.id),
+  openingFloatMinor: integer("opening_float_minor").notNull().default(0),
+  openingCurrency: text("opening_currency").notNull(), // ZIG | USD | ZAR
+  status: text("status").notNull().default("open"), // 'open' | 'closed'
+  openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
+  closedBy: uuid("closed_by").references(() => staffUsers.id),
+  closedAt: timestamp("closed_at", { withTimezone: true }),
+});
+
+// Append-only. Sale currency/tender/rate snapshot per ADR 0004;
+// reporting_amount_minor is the server-computed total in the tenant's
+// reporting currency (never client-trusted — see migration comments).
+export const sales = pgTable("sales", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  branchId: uuid("branch_id")
+    .notNull()
+    .references(() => branches.id),
+  cashierStaffUserId: uuid("cashier_staff_user_id")
+    .notNull()
+    .references(() => staffUsers.id),
+  deviceId: uuid("device_id")
+    .notNull()
+    .references(() => devices.id),
+  operationId: uuid("operation_id").notNull(),
+  amountMinor: integer("amount_minor").notNull(),
+  currencyCode: text("currency_code").notNull(),
+  exchangeRateSnapshot: numeric("exchange_rate_snapshot", { precision: 18, scale: 8 }).notNull(),
+  reportingCurrencyCode: text("reporting_currency_code").notNull(),
+  reportingAmountMinor: integer("reporting_amount_minor").notNull(),
+  rateSource: text("rate_source").notNull(),
+  rateApprovedBy: uuid("rate_approved_by").references(() => staffUsers.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const saleItems = pgTable("sale_items", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  saleId: uuid("sale_id")
+    .notNull()
+    .references(() => sales.id),
+  productId: uuid("product_id")
+    .notNull()
+    .references(() => products.id),
+  quantity: integer("quantity").notNull(),
+  unitPriceMinor: integer("unit_price_minor").notNull(),
+  currencyCode: text("currency_code").notNull(),
+  lineTotalMinor: integer("line_total_minor").notNull(),
+  unitCostPriceMinor: integer("unit_cost_price_minor").notNull(), // products.cost_price_minor snapshot at sale time, for Sprint 5 COGS
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Append-only. direction 'in' = customer paid the business (sale
+// tender); 'out' = business paid the customer back (refund). Split
+// tender means multiple 'in' rows per sale, potentially different
+// tender_type/currency_code each.
+export const payments = pgTable("payments", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  saleId: uuid("sale_id")
+    .notNull()
+    .references(() => sales.id),
+  returnId: uuid("return_id"), // set only for direction='out' refund rows; references returns.id (added after returns table below)
+  cashSessionId: uuid("cash_session_id").references(() => cashSessions.id),
+  direction: text("direction").notNull(), // 'in' | 'out'
+  tenderType: text("tender_type").notNull(), // 'cash' | 'mobile_money' | 'card' | 'bank_transfer'
+  amountMinor: integer("amount_minor").notNull(),
+  currencyCode: text("currency_code").notNull(),
+  exchangeRateSnapshot: numeric("exchange_rate_snapshot", { precision: 18, scale: 8 }).notNull(),
+  reportingCurrencyCode: text("reporting_currency_code").notNull(),
+  reportingAmountMinor: integer("reporting_amount_minor").notNull(),
+  rateSource: text("rate_source").notNull(),
+  rateApprovedBy: uuid("rate_approved_by").references(() => staffUsers.id),
+  actorStaffUserId: uuid("actor_staff_user_id")
+    .notNull()
+    .references(() => staffUsers.id),
+  deviceId: uuid("device_id")
+    .notNull()
+    .references(() => devices.id),
+  operationId: uuid("operation_id").notNull().default(sql`gen_random_uuid()`),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Reversal record — never mutates the original sale (CLAUDE.md rule 2).
+// A void is just a return covering every line of a sale.
+export const returns = pgTable("returns", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  branchId: uuid("branch_id")
+    .notNull()
+    .references(() => branches.id),
+  originalSaleId: uuid("original_sale_id")
+    .notNull()
+    .references(() => sales.id),
+  actorStaffUserId: uuid("actor_staff_user_id")
+    .notNull()
+    .references(() => staffUsers.id),
+  deviceId: uuid("device_id")
+    .notNull()
+    .references(() => devices.id),
+  operationId: uuid("operation_id").notNull(),
+  reason: text("reason").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const returnItems = pgTable("return_items", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  returnId: uuid("return_id")
+    .notNull()
+    .references(() => returns.id),
+  saleItemId: uuid("sale_item_id")
+    .notNull()
+    .references(() => saleItems.id),
+  productId: uuid("product_id")
+    .notNull()
+    .references(() => products.id),
+  quantity: integer("quantity").notNull(),
+  unitPriceMinor: integer("unit_price_minor").notNull(),
+  currencyCode: text("currency_code").notNull(),
+  lineTotalMinor: integer("line_total_minor").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Physical cash-up counts entered at session close, one row per
+// tender_type/currency_code combination actually used during the session.
+export const cashCounts = pgTable("cash_counts", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  cashSessionId: uuid("cash_session_id")
+    .notNull()
+    .references(() => cashSessions.id),
+  tenderType: text("tender_type").notNull(),
+  currencyCode: text("currency_code").notNull(),
+  countedAmountMinor: integer("counted_amount_minor").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Computed at session close: expected (from payments) vs counted.
+// requires_review is set when |variance| exceeds
+// tenants.cash_variance_threshold_minor; a manager must then review
+// before the variance is considered resolved (sprints.md Sprint 3
+// acceptance criterion).
+export const cashVariances = pgTable("cash_variances", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  cashSessionId: uuid("cash_session_id")
+    .notNull()
+    .references(() => cashSessions.id),
+  tenderType: text("tender_type").notNull(),
+  currencyCode: text("currency_code").notNull(),
+  expectedAmountMinor: integer("expected_amount_minor").notNull(),
+  countedAmountMinor: integer("counted_amount_minor").notNull(),
+  varianceMinor: integer("variance_minor").notNull(),
+  reason: text("reason"),
+  requiresReview: boolean("requires_review").notNull().default(false),
+  reviewedBy: uuid("reviewed_by").references(() => staffUsers.id),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

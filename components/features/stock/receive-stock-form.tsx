@@ -2,17 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/auth/supabase-browser";
-import { getDeviceId } from "@/lib/sync/device-id";
+import { queueStockMovement } from "@/lib/sync/writes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-// Logs a stock_movements 'receipt' row through the regular RLS path
-// (lib/db/migrations/0006_stock_rls_and_functions.sql) — any tenant
-// staff member can receive stock on their own registered device. Uses
-// ADR 0003's operation_id/device_id contract; real offline queueing via
-// PowerSync (ADR 0002) is a follow-up, this write goes straight to the
-// server today.
+// Queues a stock_movements 'receipt' row through the local-first
+// PowerSync write path (ADR 0002/0003, lib/sync/writes.ts) — commits to
+// local SQLite immediately (works offline, survives a refresh) and
+// uploads to lib/db/migrations/0006_stock_rls_and_functions.sql's RLS
+// path automatically once connected.
 export function ReceiveStockForm({
   productId,
   tenantId,
@@ -35,40 +33,25 @@ export function ReceiveStockForm({
       setError("Enter a whole number greater than zero");
       return;
     }
-    const deviceId = getDeviceId();
-    if (!deviceId) {
-      setError("Device not registered yet — reload the dashboard first");
-      return;
-    }
 
     setBusy(true);
     setError(null);
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
+
+    try {
+      await queueStockMovement({
+        tenantId,
+        branchId,
+        productId,
+        movementType: "receipt",
+        quantityDelta: qty,
+      });
+    } catch (e) {
       setBusy(false);
-      setError("Session expired");
+      setError(e instanceof Error ? e.message : "Could not queue this receipt");
       return;
     }
-
-    const { error: insertError } = await supabase.from("stock_movements").insert({
-      tenant_id: tenantId,
-      branch_id: branchId,
-      product_id: productId,
-      movement_type: "receipt",
-      quantity_delta: qty,
-      actor_staff_user_id: user.id,
-      device_id: deviceId,
-      operation_id: crypto.randomUUID(),
-    });
 
     setBusy(false);
-    if (insertError) {
-      setError(insertError.message);
-      return;
-    }
     setQuantity("");
     setOpen(false);
     router.refresh();

@@ -89,9 +89,16 @@ export default async function DashboardPage() {
         </Link>
       </Card>
 
-      <Card className="animate-rise-in flex flex-col items-center gap-2 py-6 text-center text-sm text-foreground-muted">
-        <p>Sales, POS and cash-up screens are built in later sprints per <code className="rounded bg-surface-sunken px-1.5 py-0.5 text-xs">sprints.md</code>.</p>
-      </Card>
+      <div className="animate-rise-in grid grid-cols-2 gap-3">
+        <Link href="/pos">
+          <Button className="min-h-14 w-full">Sell</Button>
+        </Link>
+        <Link href="/cash-up">
+          <Button variant="ghost" className="min-h-14 w-full">
+            Cash-up
+          </Button>
+        </Link>
+      </div>
     </main>
   );
 }

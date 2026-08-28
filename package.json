@@ -17,6 +17,8 @@
     "db:apply-migrations": "node scripts/apply-migrations.mjs"
   },
   "dependencies": {
+    "@powersync/common": "^2.1.0",
+    "@powersync/web": "^2.2.0",
     "@sentry/nextjs": "^10.71.0",
     "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "^2.112.4",
