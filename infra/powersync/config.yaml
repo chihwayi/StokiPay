@@ -12,6 +12,7 @@ replication:
 storage:
   type: postgresql
   uri: !env PS_STORAGE_URI
+  sslmode: disable
 
 port: 8080
 
