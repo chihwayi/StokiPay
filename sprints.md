@@ -121,13 +121,13 @@ If a command is not available yet, the sprint must add it or explicitly document
 
 **Acceptance evidence:**
 
-- [ ] Customer and supplier balances are reconstructable from ledger entries in a unit/integration test.
-- [ ] Credit sale reduces stock immediately and creates the appropriate unpaid ledger balance.
-- [ ] Partial repayment updates the balance without editing historical entries.
-- [ ] Sandbox payment completes request → verified webhook or poll → reconciled payment; duplicate webhook changes nothing.
-- [ ] Invalid webhook signature is rejected and audited.
+- [x] Customer and supplier balances are reconstructable from ledger entries in a unit/integration test. (`tests/integration/customers-suppliers.test.ts`)
+- [x] Credit sale reduces stock immediately and creates the appropriate unpaid ledger balance. (`tests/integration/customers-suppliers.test.ts`)
+- [x] Partial repayment updates the balance without editing historical entries. (`tests/integration/customers-suppliers.test.ts`)
+- [ ] Sandbox payment completes request → verified webhook or poll → reconciled payment; duplicate webhook changes nothing. Reconciliation idempotency is proven against a synthetic payload; no real Paynow sandbox request was made this sprint (no credentials available — owner's explicit decision, see `docs/handoffs/sprint-4.md`).
+- [x] Invalid webhook signature is rejected and audited, proven at the unit/code level (`tests/unit/paynow.test.ts`, `app/api/payments/paynow-webhook/route.ts`) — not yet exercised against a real Paynow-signed webhook.
 
-**Exit gate:** standard verification plus Paynow sandbox evidence and webhook idempotency tests pass.
+**Exit gate:** standard verification, ledger/credit/repayment and webhook-idempotency tests pass. Paynow live sandbox evidence is outstanding — see `docs/handoffs/sprint-4.md`.
 
 ## Sprint 5 — Reports, Exports & Fiscal-Ready Records
 

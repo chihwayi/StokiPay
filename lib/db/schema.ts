@@ -262,19 +262,23 @@ export const saleItems = pgTable("sale_items", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// Append-only. direction 'in' = customer paid the business (sale
-// tender); 'out' = business paid the customer back (refund). Split
-// tender means multiple 'in' rows per sale, potentially different
-// tender_type/currency_code each.
+// Append-only. direction 'in' = money received by the business (sale
+// tender, customer debt repayment); 'out' = money paid out (refund,
+// supplier payment). Split tender means multiple 'in' rows per sale,
+// potentially different tender_type/currency_code each. Exactly one of
+// sale_id/customer_id/supplier_id is set — Sprint 4 (0010 migration)
+// widened this table to also carry standalone customer-repayment and
+// supplier-payment events so they still flow into cash-up reconciliation
+// (lib/db/migrations/0010_customers_suppliers_credit.sql).
 export const payments = pgTable("payments", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantId: uuid("tenant_id")
     .notNull()
     .references(() => tenants.id),
-  saleId: uuid("sale_id")
-    .notNull()
-    .references(() => sales.id),
+  saleId: uuid("sale_id").references(() => sales.id),
   returnId: uuid("return_id"), // set only for direction='out' refund rows; references returns.id (added after returns table below)
+  customerId: uuid("customer_id"), // set only for standalone customer debt repayments; references customers.id (added in Sprint 4)
+  supplierId: uuid("supplier_id"), // set only for standalone supplier payments; references suppliers.id (added in Sprint 4)
   cashSessionId: uuid("cash_session_id").references(() => cashSessions.id),
   direction: text("direction").notNull(), // 'in' | 'out'
   tenderType: text("tender_type").notNull(), // 'cash' | 'mobile_money' | 'card' | 'bank_transfer'
@@ -285,12 +289,12 @@ export const payments = pgTable("payments", {
   reportingAmountMinor: integer("reporting_amount_minor").notNull(),
   rateSource: text("rate_source").notNull(),
   rateApprovedBy: uuid("rate_approved_by").references(() => staffUsers.id),
-  actorStaffUserId: uuid("actor_staff_user_id")
-    .notNull()
-    .references(() => staffUsers.id),
-  deviceId: uuid("device_id")
-    .notNull()
-    .references(() => devices.id),
+  // Null only for provider-reconciled payments (Sprint 4, Paynow) — a
+  // customer paying via a payment link has no staff actor or registered
+  // device; self-documenting via provider_payments.resulting_payment_id
+  // pointing back at this row.
+  actorStaffUserId: uuid("actor_staff_user_id").references(() => staffUsers.id),
+  deviceId: uuid("device_id").references(() => devices.id),
   operationId: uuid("operation_id").notNull().default(sql`gen_random_uuid()`),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -378,5 +382,214 @@ export const cashVariances = pgTable("cash_variances", {
   requiresReview: boolean("requires_review").notNull().default(false),
   reviewedBy: uuid("reviewed_by").references(() => staffUsers.id),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Sprint 4 — Customers, Suppliers, Credit & Mobile-Money Reconciliation.
+// Balances are never a stored column — always
+// sum(ledger.reporting_amount_minor) for a customer/supplier, so the
+// balance is reconstructable from history by construction (sprints.md's
+// acceptance criterion), matching the same append-only discipline as
+// stock_movements/sales. Written exclusively through SECURITY DEFINER
+// RPCs (lib/db/migrations/0010_customers_suppliers_credit.sql,
+// 0011_purchase_orders.sql).
+
+export const customers = pgTable("customers", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Append-only. amount_minor is signed in the ledger's own currency_code:
+// positive increases what the customer owes (a credit sale), negative
+// decreases it (a repayment). Balance = sum(reporting_amount_minor).
+export const customerLedger = pgTable("customer_ledger", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  customerId: uuid("customer_id")
+    .notNull()
+    .references(() => customers.id),
+  entryType: text("entry_type").notNull(), // 'credit_sale' | 'payment' | 'adjustment'
+  amountMinor: integer("amount_minor").notNull(),
+  currencyCode: text("currency_code").notNull(),
+  exchangeRateSnapshot: numeric("exchange_rate_snapshot", { precision: 18, scale: 8 }).notNull(),
+  reportingCurrencyCode: text("reporting_currency_code").notNull(),
+  reportingAmountMinor: integer("reporting_amount_minor").notNull(),
+  rateSource: text("rate_source").notNull(),
+  rateApprovedBy: uuid("rate_approved_by").references(() => staffUsers.id),
+  referenceSaleId: uuid("reference_sale_id").references(() => sales.id),
+  referencePaymentId: uuid("reference_payment_id").references(() => payments.id),
+  actorStaffUserId: uuid("actor_staff_user_id")
+    .notNull()
+    .references(() => staffUsers.id),
+  deviceId: uuid("device_id")
+    .notNull()
+    .references(() => devices.id),
+  operationId: uuid("operation_id").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const suppliers = pgTable("suppliers", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Append-only. amount_minor positive = we owe the supplier more
+// (goods received on credit), negative = we paid them down.
+export const supplierLedger = pgTable("supplier_ledger", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  supplierId: uuid("supplier_id")
+    .notNull()
+    .references(() => suppliers.id),
+  entryType: text("entry_type").notNull(), // 'purchase' | 'payment' | 'adjustment'
+  amountMinor: integer("amount_minor").notNull(),
+  currencyCode: text("currency_code").notNull(),
+  exchangeRateSnapshot: numeric("exchange_rate_snapshot", { precision: 18, scale: 8 }).notNull(),
+  reportingCurrencyCode: text("reporting_currency_code").notNull(),
+  reportingAmountMinor: integer("reporting_amount_minor").notNull(),
+  rateSource: text("rate_source").notNull(),
+  rateApprovedBy: uuid("rate_approved_by").references(() => staffUsers.id),
+  referencePurchaseReceiptId: uuid("reference_purchase_receipt_id"), // references purchase_receipts.id (defined below)
+  referencePaymentId: uuid("reference_payment_id").references(() => payments.id),
+  actorStaffUserId: uuid("actor_staff_user_id")
+    .notNull()
+    .references(() => staffUsers.id),
+  deviceId: uuid("device_id")
+    .notNull()
+    .references(() => devices.id),
+  operationId: uuid("operation_id").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const purchaseOrders = pgTable("purchase_orders", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  branchId: uuid("branch_id")
+    .notNull()
+    .references(() => branches.id),
+  supplierId: uuid("supplier_id")
+    .notNull()
+    .references(() => suppliers.id),
+  status: text("status").notNull().default("submitted"), // 'submitted' | 'received'
+  createdBy: uuid("created_by")
+    .notNull()
+    .references(() => staffUsers.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const purchaseOrderLines = pgTable("purchase_order_lines", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  purchaseOrderId: uuid("purchase_order_id")
+    .notNull()
+    .references(() => purchaseOrders.id),
+  productId: uuid("product_id")
+    .notNull()
+    .references(() => products.id),
+  quantityOrdered: integer("quantity_ordered").notNull(),
+  unitCostMinor: integer("unit_cost_minor").notNull(),
+  currencyCode: text("currency_code").notNull(),
+});
+
+// The actual receiving event — captures discrepancies (ordered vs
+// received per line, on purchase_receipt_lines) and landed cost
+// (freight/other costs allocated proportionally across received lines).
+export const purchaseReceipts = pgTable("purchase_receipts", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  purchaseOrderId: uuid("purchase_order_id")
+    .notNull()
+    .references(() => purchaseOrders.id),
+  branchId: uuid("branch_id")
+    .notNull()
+    .references(() => branches.id),
+  freightCostMinor: integer("freight_cost_minor").notNull().default(0),
+  otherCostMinor: integer("other_cost_minor").notNull().default(0),
+  currencyCode: text("currency_code").notNull(),
+  receivedBy: uuid("received_by")
+    .notNull()
+    .references(() => staffUsers.id),
+  deviceId: uuid("device_id")
+    .notNull()
+    .references(() => devices.id),
+  operationId: uuid("operation_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const purchaseReceiptLines = pgTable("purchase_receipt_lines", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  purchaseReceiptId: uuid("purchase_receipt_id")
+    .notNull()
+    .references(() => purchaseReceipts.id),
+  productId: uuid("product_id")
+    .notNull()
+    .references(() => products.id),
+  quantityOrdered: integer("quantity_ordered").notNull(),
+  quantityReceived: integer("quantity_received").notNull(),
+  landedUnitCostMinor: integer("landed_unit_cost_minor").notNull(), // base unit cost + allocated share of freight/other
+  currencyCode: text("currency_code").notNull(),
+});
+
+// Paynow (ADR-pending) request -> webhook/poll -> reconciled lifecycle.
+// Never trust a webhook alone: status only reaches 'confirmed' after
+// signature verification, and a poll-based reconciliation fallback can
+// independently reach the same state (sprints.md Sprint 4 acceptance
+// criteria). No real Paynow sandbox credentials were available this
+// sprint (docs/handoffs/sprint-4.md) — this table and its state machine
+// are built and unit-tested against synthetic signed payloads only.
+export const providerPayments = pgTable("provider_payments", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  saleId: uuid("sale_id").references(() => sales.id),
+  customerId: uuid("customer_id").references(() => customers.id),
+  provider: text("provider").notNull().default("paynow"),
+  providerReference: text("provider_reference"), // Paynow's pollurl-derived reference, set once known
+  status: text("status").notNull().default("initiated"), // 'initiated' | 'confirmed' | 'failed' | 'cancelled'
+  amountMinor: integer("amount_minor").notNull(),
+  currencyCode: text("currency_code").notNull(),
+  resultingPaymentId: uuid("resulting_payment_id").references(() => payments.id), // set once reconciled into payments
+  lastWebhookAt: timestamp("last_webhook_at", { withTimezone: true }),
+  lastPolledAt: timestamp("last_polled_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Every inbound webhook attempt, valid or not — an invalid signature must
+// be rejected AND audited (sprints.md Sprint 4 acceptance criterion), not
+// just silently dropped.
+export const providerWebhookLog = pgTable("provider_webhook_log", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  providerPaymentId: uuid("provider_payment_id").references(() => providerPayments.id),
+  provider: text("provider").notNull().default("paynow"),
+  signatureValid: boolean("signature_valid").notNull(),
+  rawBody: text("raw_body").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

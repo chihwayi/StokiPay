@@ -106,6 +106,7 @@ async function uploadOne(
         p_currency_code: data.currency_code,
         p_items: JSON.parse(String(data.items_json)),
         p_payments: JSON.parse(String(data.payments_json)),
+        p_customer_id: data.customer_id ?? null,
       });
       if (error) throw error;
       return;

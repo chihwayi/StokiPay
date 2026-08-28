@@ -38,6 +38,12 @@ export default async function PosPage() {
     .eq("is_active", true)
     .order("name");
 
+  const { data: customers } = await supabase
+    .from("customers")
+    .select("id, name")
+    .eq("tenant_id", staffUser.tenant_id)
+    .order("name");
+
   if (!branch) {
     return (
       <main className="relative z-10 mx-auto flex min-h-dvh max-w-md flex-col gap-6 px-6 py-10">
@@ -76,6 +82,7 @@ export default async function PosPage() {
           sellPriceMinor: p.sell_price_minor,
           currencyCode: p.price_currency,
         }))}
+        customers={customers ?? []}
       />
     </main>
   );

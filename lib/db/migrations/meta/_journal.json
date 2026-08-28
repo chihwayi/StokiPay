@@ -22,6 +22,13 @@
       "when": 1787911697047,
       "tag": "0007_sales_cashup_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787936446453,
+      "tag": "0010_customers_suppliers_credit_tables",
+      "breakpoints": true
     }
   ]
 }

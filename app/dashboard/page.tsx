@@ -98,6 +98,16 @@ export default async function DashboardPage() {
             Cash-up
           </Button>
         </Link>
+        <Link href="/customers">
+          <Button variant="ghost" className="min-h-14 w-full">
+            Customers
+          </Button>
+        </Link>
+        <Link href="/suppliers">
+          <Button variant="ghost" className="min-h-14 w-full">
+            Suppliers
+          </Button>
+        </Link>
       </div>
     </main>
   );

@@ -41,16 +41,19 @@ export function PosTerminal({
   branchId,
   reportingCurrency,
   products,
+  customers,
 }: {
   branchId: string;
   reportingCurrency: string;
   products: Product[];
+  customers: { id: string; name: string }[];
 }) {
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [tenders, setTenders] = useState<
     { tenderType: SalePaymentInput["tenderType"]; amount: string; currencyCode: string }[]
   >([{ tenderType: "cash", amount: "", currencyCode: reportingCurrency }]);
+  const [creditCustomerId, setCreditCustomerId] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<{ operationId: string; totalMinor: number; currency: string } | null>(null);
@@ -111,8 +114,12 @@ export function PosTerminal({
         amountMinor: Math.round(Number(t.amount) * 100),
         currencyCode: t.currencyCode,
       }));
-    if (payments.length === 0) {
-      setError("Enter at least one tender amount");
+    // Without a customer on credit, payments must fully cover the sale
+    // (stockflow_create_sale enforces this server-side too). With a
+    // customer selected, a shortfall becomes their unpaid balance — zero
+    // tender is a valid fully-on-credit sale.
+    if (payments.length === 0 && !creditCustomerId) {
+      setError("Enter at least one tender amount, or select a customer to sell on credit");
       return;
     }
 
@@ -123,10 +130,12 @@ export function PosTerminal({
         currencyCode: cartCurrency!,
         items: cart.map((l) => ({ productId: l.productId, quantity: l.quantity, unitPriceMinor: l.unitPriceMinor })),
         payments,
+        customerId: creditCustomerId || undefined,
       });
       setReceipt({ operationId: result.operationId, totalMinor: subtotalMinor, currency: cartCurrency! });
       setCart([]);
       setTenders([{ tenderType: "cash", amount: "", currencyCode: reportingCurrency }]);
+      setCreditCustomerId("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not queue this sale");
     } finally {
@@ -260,6 +269,23 @@ export function PosTerminal({
               />
             </div>
           ))}
+          {customers.length > 0 && (
+            <label className="flex flex-col gap-1 text-xs font-semibold text-foreground-muted">
+              Sell on credit to (optional — shortfall becomes their balance)
+              <select
+                value={creditCustomerId}
+                onChange={(e) => setCreditCustomerId(e.target.value)}
+                className="min-h-11 rounded-xl border-2 border-border bg-surface px-3 text-sm text-foreground"
+              >
+                <option value="">— full payment, no credit —</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <Button variant="ghost" type="button" className="min-h-10 self-start px-4 text-xs" onClick={addTender}>
             + Split tender
           </Button>

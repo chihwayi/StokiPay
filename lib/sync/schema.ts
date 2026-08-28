@@ -72,6 +72,7 @@ const pendingSales = new Table({
   currency_code: column.text,
   items_json: column.text,
   payments_json: column.text,
+  customer_id: column.text, // credit sale (Sprint 4) — null for a fully-paid sale
   created_at: column.text,
 });
 

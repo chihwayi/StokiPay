@@ -27,6 +27,7 @@ export async function queueSale(params: {
   currencyCode: string;
   items: SaleItemInput[];
   payments: SalePaymentInput[];
+  customerId?: string; // credit sale (Sprint 4) — payments may fall short of the total
 }): Promise<{ operationId: string }> {
   const deviceId = getOrCreateDeviceId();
   const operationId = createOperationId();
@@ -34,8 +35,8 @@ export async function queueSale(params: {
 
   await db.execute(
     `insert into pending_sales
-      (id, operation_id, branch_id, device_id, currency_code, items_json, payments_json, created_at)
-      values (uuid(), ?, ?, ?, ?, ?, ?, datetime('now'))`,
+      (id, operation_id, branch_id, device_id, currency_code, items_json, payments_json, customer_id, created_at)
+      values (uuid(), ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
     [
       operationId,
       params.branchId,
@@ -55,6 +56,7 @@ export async function queueSale(params: {
           currency_code: p.currencyCode,
         })),
       ),
+      params.customerId ?? null,
     ],
   );
 
