@@ -108,6 +108,13 @@ export default async function DashboardPage() {
             Suppliers
           </Button>
         </Link>
+        {(staffUser.role === "owner" || staffUser.role === "manager") && (
+          <Link href="/reports" className="col-span-2">
+            <Button variant="secondary" className="min-h-14 w-full">
+              Reports
+            </Button>
+          </Link>
+        )}
       </div>
     </main>
   );

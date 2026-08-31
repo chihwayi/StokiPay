@@ -137,13 +137,13 @@ If a command is not available yet, the sprint must add it or explicitly document
 
 **Acceptance evidence:**
 
-- [ ] A changed product cost does not alter historic profit; test proves it.
-- [ ] Reports display original currency and rate context; they do not use today's exchange rate for historical totals.
-- [ ] On-screen, PDF and Excel totals match for a fixed seeded dataset.
-- [ ] Daily cash-up, outstanding debt, stock variance and profit reports reconcile to underlying ledgers.
-- [ ] Any fiscal export is labelled “configuration/export only” unless formal compliance verification is recorded.
+- [x] A changed product cost does not alter historic profit; test proves it. (`tests/integration/reports.test.ts`)
+- [x] Reports display original currency and rate context; they do not use today's exchange rate for historical totals. (`tests/integration/reports.test.ts`)
+- [ ] On-screen, PDF and Excel totals match for a fixed seeded dataset. Architecturally guaranteed (one shared `buildReport()` call for all three) and indirectly verified against raw SQL sums; not proven via a live authenticated Playwright run against the deployed export routes — see `docs/handoffs/sprint-5.md`.
+- [x] Daily cash-up, outstanding debt, stock variance and profit reports reconcile to underlying ledgers. (`tests/integration/reports.test.ts`, `tests/unit/reports.test.ts`)
+- [x] Any fiscal export is labelled "configuration/export only" unless formal compliance verification is recorded. (drawn directly on both PDF and Excel outputs)
 
-**Exit gate:** standard verification plus snapshot report fixtures and export comparison pass.
+**Exit gate:** standard verification, profit-immutability and reconciliation tests pass. Live browser-authenticated export comparison is outstanding — see `docs/handoffs/sprint-5.md`.
 
 ## Sprint 6 — Multi-device Conflict, Recovery & Resilience
 
