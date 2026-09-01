@@ -60,6 +60,12 @@ export default async function DashboardPage() {
         .eq("resolved", false)
     : { count: 0 };
 
+  const { count: activeAlerts } = await supabase
+    .from("alerts")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", staffUser.tenant_id)
+    .eq("dismissed", false);
+
   return (
     <main className="relative z-10 mx-auto flex min-h-dvh max-w-md flex-col gap-6 px-6 py-10">
       <header className="animate-rise-in flex items-start justify-between gap-4">
@@ -128,6 +134,23 @@ export default async function DashboardPage() {
           <Link href="/conflicts" className="relative">
             <Button variant={unresolvedConflicts ? "primary" : "ghost"} className="min-h-14 w-full">
               Conflicts{unresolvedConflicts ? ` (${unresolvedConflicts})` : ""}
+            </Button>
+          </Link>
+        )}
+        <Link href="/alerts" className="relative">
+          <Button variant={activeAlerts ? "primary" : "ghost"} className="min-h-14 w-full">
+            Alerts{activeAlerts ? ` (${activeAlerts})` : ""}
+          </Button>
+        </Link>
+        <Link href="/copilot">
+          <Button variant="ghost" className="min-h-14 w-full">
+            Copilot
+          </Button>
+        </Link>
+        {canReview && (
+          <Link href="/ledger-scan">
+            <Button variant="ghost" className="min-h-14 w-full">
+              Scan ledger
             </Button>
           </Link>
         )}

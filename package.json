@@ -17,6 +17,7 @@
     "db:apply-migrations": "node scripts/apply-migrations.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.122.0",
     "@powersync/common": "^2.1.0",
     "@powersync/web": "^2.2.0",
     "@sentry/nextjs": "^10.71.0",

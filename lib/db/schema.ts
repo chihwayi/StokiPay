@@ -625,3 +625,53 @@ export const stockConflicts = pgTable("stock_conflicts", {
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Sprint 7 — AI-Assisted Onboarding & Read-only Copilot.
+// extractedLines is exactly what the model returned (or what a manual
+// entry looked like, if AI wasn't configured) — never edited in place.
+// stockflow_confirm_ocr_draft (lib/db/migrations/0019...) takes a
+// separate, owner-reviewed p_lines parameter for what actually gets
+// created, so the original AI output and the human-approved version are
+// both preserved (CLAUDE.md rule 6: AI is read-only/additive, never
+// authoritative — no product or stock record exists until an explicit
+// owner/manager confirm).
+export const ocrDrafts = pgTable("ocr_drafts", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  branchId: uuid("branch_id")
+    .notNull()
+    .references(() => branches.id),
+  uploadedBy: uuid("uploaded_by")
+    .notNull()
+    .references(() => staffUsers.id),
+  deviceId: uuid("device_id")
+    .notNull()
+    .references(() => devices.id),
+  extractedLines: jsonb("extracted_lines").notNull(), // [{productName, quantity, unitPriceMinor, confidence}]
+  extractionNotes: text("extraction_notes"),
+  status: text("status").notNull().default("draft"), // 'draft' | 'confirmed' | 'rejected'
+  confirmedBy: uuid("confirmed_by").references(() => staffUsers.id),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Dismissible, tenant-scoped anomaly alerts (Sprint 7's "anomaly job").
+// Purely a query over already-existing tables (stock_conflicts,
+// cash_variances, customer_ledger) — no AI involved, so it works
+// identically whether or not ANTHROPIC_API_KEY is set.
+export const alerts = pgTable("alerts", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  alertType: text("alert_type").notNull(), // 'unresolved_stock_conflict' | 'unreviewed_cash_variance' | 'rapid_debt_growth'
+  message: text("message").notNull(),
+  sourceTable: text("source_table"),
+  sourceId: uuid("source_id"),
+  dismissed: boolean("dismissed").notNull().default(false),
+  dismissedBy: uuid("dismissed_by").references(() => staffUsers.id),
+  dismissedAt: timestamp("dismissed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

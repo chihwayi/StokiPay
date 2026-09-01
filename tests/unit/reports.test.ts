@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   aggregateProfitReport,
+  computeBestWorstSellers,
   computeCashUpSummary,
   computeDebtSummary,
   computeSaleItemProfit,
@@ -102,5 +103,42 @@ describe("stock variance summary", () => {
       { productId: "p2", netVariance: 5 },
     ]));
     expect(totalAbsoluteVariance).toBe(6);
+  });
+});
+
+describe("best/worst sellers (sprints.md Sprint 7 copilot tool)", () => {
+  it("aggregates revenue/quantity per product across multiple lines and sales", () => {
+    const { bestSellers, worstSellers } = computeBestWorstSellers([
+      { productId: "bread", productName: "Bread Loaf", quantity: 3, unitPriceMinor: 200, unitCostPriceMinor: 100, saleExchangeRateSnapshot: 1 },
+      { productId: "bread", productName: "Bread Loaf", quantity: 2, unitPriceMinor: 200, unitCostPriceMinor: 100, saleExchangeRateSnapshot: 1 },
+      { productId: "cola", productName: "Cola 2L", quantity: 1, unitPriceMinor: 150, unitCostPriceMinor: 90, saleExchangeRateSnapshot: 1 },
+    ]);
+    expect(bestSellers[0]).toEqual({ productId: "bread", productName: "Bread Loaf", revenueMinor: 1000, quantitySold: 5 });
+    expect(worstSellers[0]).toEqual({ productId: "cola", productName: "Cola 2L", revenueMinor: 150, quantitySold: 1 });
+  });
+
+  it("ranks by revenue at the sale's own stored rate, not raw quantity", () => {
+    const { bestSellers } = computeBestWorstSellers([
+      { productId: "cheap-high-volume", productName: "Sweets", quantity: 100, unitPriceMinor: 10, unitCostPriceMinor: 5, saleExchangeRateSnapshot: 1 },
+      { productId: "pricey-low-volume", productName: "Cooking Oil 2L", quantity: 5, unitPriceMinor: 500, unitCostPriceMinor: 300, saleExchangeRateSnapshot: 1 },
+    ]);
+    expect(bestSellers[0].productId).toBe("pricey-low-volume"); // 2500 revenue beats 1000
+  });
+
+  it("caps best/worst lists at 5 each and never returns the same product in both when there are more than 10 products", () => {
+    const items = Array.from({ length: 12 }, (_, i) => ({
+      productId: `p${i}`,
+      productName: `Product ${i}`,
+      quantity: 1,
+      unitPriceMinor: (i + 1) * 100,
+      unitCostPriceMinor: 0,
+      saleExchangeRateSnapshot: 1,
+    }));
+    const { bestSellers, worstSellers } = computeBestWorstSellers(items);
+    expect(bestSellers).toHaveLength(5);
+    expect(worstSellers).toHaveLength(5);
+    const bestIds = new Set(bestSellers.map((r) => r.productId));
+    const worstIds = new Set(worstSellers.map((r) => r.productId));
+    expect([...bestIds].some((id) => worstIds.has(id))).toBe(false);
   });
 });

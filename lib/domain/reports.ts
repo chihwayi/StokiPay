@@ -128,3 +128,37 @@ export function computeStockVarianceSummary(movements: StockVarianceMovementInpu
   const totalAbsoluteVariance = rows.reduce((s, r) => s + Math.abs(r.netVariance), 0);
   return { rows, totalAbsoluteVariance };
 }
+
+export type SaleItemProductInput = SaleItemProfitInput & { productId: string; productName: string };
+
+export type ProductSalesRow = { productId: string; productName: string; revenueMinor: number; quantitySold: number };
+
+// Per-product revenue/quantity ranking, same frozen-snapshot discipline
+// as computeSaleItemProfit — used for the Sprint 7 copilot's "best/worst
+// seller" tool.
+export function computeBestWorstSellers(items: SaleItemProductInput[]): {
+  bestSellers: ProductSalesRow[];
+  worstSellers: ProductSalesRow[];
+} {
+  const byProduct = new Map<string, ProductSalesRow>();
+  for (const item of items) {
+    const { revenueMinor } = computeSaleItemProfit(item);
+    const existing = byProduct.get(item.productId);
+    if (existing) {
+      existing.revenueMinor += revenueMinor;
+      existing.quantitySold += item.quantity;
+    } else {
+      byProduct.set(item.productId, {
+        productId: item.productId,
+        productName: item.productName,
+        revenueMinor,
+        quantitySold: item.quantity,
+      });
+    }
+  }
+  const rows = Array.from(byProduct.values()).sort((a, b) => b.revenueMinor - a.revenueMinor);
+  return {
+    bestSellers: rows.slice(0, 5),
+    worstSellers: rows.slice(-5).reverse(),
+  };
+}

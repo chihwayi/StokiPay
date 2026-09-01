@@ -36,6 +36,13 @@
       "when": 1788207092327,
       "tag": "0016_stock_conflicts_table",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788253653038,
+      "tag": "0018_ocr_drafts_and_alerts_tables",
+      "breakpoints": true
     }
   ]
 }

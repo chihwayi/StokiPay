@@ -169,13 +169,13 @@ If a command is not available yet, the sprint must add it or explicitly document
 
 **Acceptance evidence:**
 
-- [ ] OCR output is always a draft; no product or stock record is created until an owner confirms it.
-- [ ] A fixed evaluation set of handwritten samples has documented extraction quality and correction rate.
-- [ ] Copilot answers required profit, best/worst seller and debt questions using returned tenant-scoped figures with cited period/source.
-- [ ] Adversarial tests demonstrate the copilot cannot access another tenant or issue writes.
-- [ ] AI outage leaves manual onboarding and all POS/stock flows usable.
+- [x] OCR output is always a draft; no product or stock record is created until an owner confirms it.
+- [ ] A fixed evaluation set of handwritten samples has documented extraction quality and correction rate. (blocked: no `ANTHROPIC_API_KEY`, see `docs/handoffs/sprint-7.md`)
+- [x] Copilot answers required profit, best/worst seller and debt questions using returned tenant-scoped figures with cited period/source. (implemented and tested against real figures; live model answer quality unverified — no `ANTHROPIC_API_KEY`)
+- [x] Adversarial tests demonstrate the copilot cannot access another tenant or issue writes.
+- [x] AI outage leaves manual onboarding and all POS/stock flows usable.
 
-**Exit gate:** standard verification plus AI evaluation report and tenant-isolation adversarial test pass.
+**Exit gate:** standard verification plus AI evaluation report and tenant-isolation adversarial test pass. Tenant-isolation adversarial tests pass; AI evaluation report is outstanding, blocked on `ANTHROPIC_API_KEY` — see `docs/handoffs/sprint-7.md`.
 
 ## Sprint 8 — WhatsApp, SMS & Notifications
 
