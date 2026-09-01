@@ -51,6 +51,15 @@ export default async function DashboardPage() {
     (p) => (levelByProduct.get(p.id) ?? 0) <= p.low_stock_threshold,
   ).length;
 
+  const canReview = staffUser.role === "owner" || staffUser.role === "manager";
+  const { count: unresolvedConflicts } = canReview
+    ? await supabase
+        .from("stock_conflicts")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", staffUser.tenant_id)
+        .eq("resolved", false)
+    : { count: 0 };
+
   return (
     <main className="relative z-10 mx-auto flex min-h-dvh max-w-md flex-col gap-6 px-6 py-10">
       <header className="animate-rise-in flex items-start justify-between gap-4">
@@ -108,10 +117,17 @@ export default async function DashboardPage() {
             Suppliers
           </Button>
         </Link>
-        {(staffUser.role === "owner" || staffUser.role === "manager") && (
-          <Link href="/reports" className="col-span-2">
+        {canReview && (
+          <Link href="/reports">
             <Button variant="secondary" className="min-h-14 w-full">
               Reports
+            </Button>
+          </Link>
+        )}
+        {canReview && (
+          <Link href="/conflicts" className="relative">
+            <Button variant={unresolvedConflicts ? "primary" : "ghost"} className="min-h-14 w-full">
+              Conflicts{unresolvedConflicts ? ` (${unresolvedConflicts})` : ""}
             </Button>
           </Link>
         )}

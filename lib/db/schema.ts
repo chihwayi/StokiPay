@@ -593,3 +593,35 @@ export const providerWebhookLog = pgTable("provider_webhook_log", {
   rawBody: text("raw_body").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Sprint 6 — Multi-device Conflict, Recovery & Resilience. Two offline
+// devices can each independently commit a sale against the same
+// physical last unit of stock — by the time they both sync, the goods
+// are already with two different customers in the real world, so the
+// sale itself is never rejected retroactively (CLAUDE.md rule 2: a
+// completed sale is reversed by a linked record, never edited/undone).
+// What must never happen is *silent* negative stock — this table is
+// what makes it visible instead, created automatically by
+// stockflow_create_sale (migration 0016) whenever a sale's own stock
+// movement leaves stock_levels below zero for that product/branch.
+export const stockConflicts = pgTable("stock_conflicts", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id),
+  branchId: uuid("branch_id")
+    .notNull()
+    .references(() => branches.id),
+  productId: uuid("product_id")
+    .notNull()
+    .references(() => products.id),
+  stockMovementId: uuid("stock_movement_id")
+    .notNull()
+    .references(() => stockMovements.id),
+  resultingQuantity: integer("resulting_quantity").notNull(), // the negative stock_levels value at detection time
+  resolved: boolean("resolved").notNull().default(false),
+  resolutionNote: text("resolution_note"),
+  resolvedBy: uuid("resolved_by").references(() => staffUsers.id),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

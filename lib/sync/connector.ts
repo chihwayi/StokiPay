@@ -6,6 +6,7 @@ import type {
 } from "@powersync/web";
 import { UpdateType } from "@powersync/web";
 import { createClient } from "@/lib/auth/supabase-browser";
+import { reportSyncUploadFailure } from "@/lib/observability/sync-telemetry";
 
 // Bridges PowerSync's local SQLite CRUD queue to our Postgres backend
 // (ADR 0002). fetchCredentials() hands PowerSync the caller's own
@@ -53,12 +54,25 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       }
       await transaction.complete();
     } catch (error) {
-      // A validation error (bad payload, already-actioned RPC precondition
-      // failing) is not retryable — retrying it forever would wedge the
-      // queue. Log for now (Sprint 6 owns a real conflict-review UI) and
-      // drop the transaction so sync can proceed with later operations.
-      // A network-class error is left for PowerSync's own retry/backoff.
-      if (isPermanentError(error)) {
+      const permanent = isPermanentError(error);
+      const firstOp = transaction.crud[0];
+      reportSyncUploadFailure({
+        table: firstOp?.table ?? "unknown",
+        operationId: typeof firstOp?.opData?.operation_id === "string" ? firstOp.opData.operation_id : undefined,
+        deviceId: typeof firstOp?.opData?.device_id === "string" ? firstOp.opData.device_id : undefined,
+        errorCode: extractErrorCode(error),
+        errorMessage: error instanceof Error ? error.message : String(error),
+        permanent,
+      });
+
+      if (permanent) {
+        // A validation error (bad payload, already-actioned RPC
+        // precondition failing) is not retryable — retrying it forever
+        // would wedge the queue. Drop the transaction so sync can
+        // proceed with later operations; it's already reported above.
+        // A network-class error is re-thrown for PowerSync's own
+        // retry/backoff to handle (still reported above as non-permanent,
+        // so a *persistently* failing retry is still visible).
         console.error("Dropping unsyncable local write (permanent error):", op_summary(transaction.crud), error);
         await transaction.complete();
         return;
@@ -70,6 +84,14 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
 
 function op_summary(crud: CrudEntry[]): string {
   return crud.map((c) => `${c.table}#${c.id}`).join(", ");
+}
+
+function extractErrorCode(error: unknown): string | undefined {
+  if (typeof error === "object" && error !== null && "code" in error) {
+    const code = (error as { code?: unknown }).code;
+    if (typeof code === "string") return code;
+  }
+  return undefined;
 }
 
 function isPermanentError(error: unknown): boolean {
